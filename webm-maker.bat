@@ -15,7 +15,7 @@ if "%~1" == "" (
 
 :: Hello user ::
 echo 4chan webm maker
-echo by Cephei
+echo by Cephei (with some modification)
 
 :: Time for some setup ::
 cd /d "%~dp0"
@@ -61,9 +61,24 @@ echo.
 set /a bitrate=8*%max_file_size%/%length%
 echo Target bitrate: %bitrate%
 
+:: Separate the audio track ::
+set audio_name=%~n1.aac
+ffmpeg -i %~1 -vn %startset% %lengthset% -acodec copy %audio_name%
+
+:: Upload the audio track to catbox.moe ::
+:: TODO support other platforms, prompt user for which one ::
+IF DEFINED CATBOX_HASH (SET hash=%CATBOX_HASH%) ELSE (SET hash=####)
+for /F %%I in ('curl -F "reqtype=fileupload" -F "userhash=%hash%" -F "fileToUpload=@%audio_name%" https://catbox.moe/user/api.php') do set upload_url=%%I
+
+:: Encode the URL ::
+for /f %%N in ('mshta "javascript:code(close(new ActiveXObject('Scripting.FileSystemObject').GetStandardStream(1).Write( encodeURIComponent("%upload_url%") )));"') do set upload_url_encoded=%%N
+
+:: Find the target webm name ::
+set webm_name="%~n1[sound=%upload_url_encoded%].webm"
+
 :: Two pass encoding because reasons ::
 ffmpeg.exe -i "%~1" -c:v libvpx -b:v %bitrate%K -quality best %resolutionset% %startset% %lengthset% -an -sn -threads 0 -f webm -pass 1 -y NUL
-ffmpeg.exe -i "%~1" -c:v libvpx -b:v %bitrate%K -quality best %resolutionset% %startset% %lengthset% -an -sn -threads 0 -pass 2 -y "%~n1.webm"
+ffmpeg.exe -i "%~1" -c:v libvpx -b:v %bitrate%K -quality best %resolutionset% %startset% %lengthset% -an -sn -threads 0 -pass 2 -y "%webm_name%"
 del ffmpeg2pass-0.log
 goto :EOF
 
